@@ -1,0 +1,105 @@
+basePath: /
+consumes:
+    - application/json
+definitions:
+    Product:
+        description: product defines the structure for an API product
+        properties:
+            description:
+                type: string
+                x-go-name: Description
+            id:
+                description: the id for this product
+                format: int64
+                minimum: 1
+                type: integer
+                x-go-name: ID
+            name:
+                type: string
+                x-go-name: Name
+            price:
+                format: float
+                type: number
+                x-go-name: Price
+            sku:
+                type: string
+                x-go-name: SKU
+        required:
+            - id
+        type: object
+        x-go-package: github.com/CharlesSchiavinato/go-microservices/data
+info:
+    description: Documentation for Product API
+    title: of Product API
+    version: 1.0.0
+paths:
+    /products:
+        get:
+            description: Returns a list of products from the data store
+            operationId: ListProducts
+            responses:
+                "200":
+                    $ref: '#/responses/productsResponse'
+            tags:
+                - products
+        post:
+            description: Create a new product
+            operationId: createProduct
+            responses:
+                "200":
+                    $ref: '#/responses/productResponse'
+                "422":
+                    $ref: '#/responses/errorValidation'
+                "501":
+                    $ref: '#/responses/errorResponse'
+            tags:
+                - products
+        put:
+            description: Update a products details
+            operationId: updateProduct
+            responses:
+                "201":
+                    $ref: '#/responses/noContentResponse'
+                "404":
+                    $ref: '#/responses/errorResponse'
+                "422":
+                    $ref: '#/responses/errorValidation'
+            tags:
+                - products
+    /products/{id}:
+        delete:
+            description: Delete product
+            operationId: DeleteProduct
+            responses:
+                "201":
+                    $ref: '#/responses/noContentResponse'
+                "404":
+                    $ref: '#/responses/errorResponse'
+                "501":
+                    $ref: '#/responses/errorResponse'
+            tags:
+                - products
+        get:
+            description: Returns the product from the data store
+            operationId: GetProduct
+            responses:
+                "200":
+                    $ref: '#/responses/productResponse'
+                "404":
+                    $ref: '#/responses/errorResponse'
+            tags:
+                - products
+produces:
+    - application/json
+responses:
+    noContent:
+        description: ""
+    productsResponse:
+        description: A list of products returns in the response
+        schema:
+            items:
+                $ref: '#/definitions/Product'
+            type: array
+schemes:
+    - http
+swagger: "2.0"
