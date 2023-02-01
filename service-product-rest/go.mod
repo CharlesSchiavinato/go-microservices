@@ -3,7 +3,7 @@ module github.com/CharlesSchiavinato/go-microservices/service-product-rest
 go 1.19
 
 require (
-	github.com/CharlesSchiavinato/go-microservices/service-currency-grpc v0.0.0-20230131023216-3b927eefe1a7 // indirect
+	github.com/CharlesSchiavinato/go-microservices/service-currency-grpc v0.0.0-20230131025858-7ed55afaa96d // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.2.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect

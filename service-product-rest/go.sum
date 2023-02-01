@@ -40,6 +40,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/CharlesSchiavinato/go-microservices/service-currency-grpc v0.0.0-20230131023216-3b927eefe1a7 h1:j5DjcR1DT7yIYfEfk2BvWcml85Ywbxjl1ktt8BgR4Ww=
 github.com/CharlesSchiavinato/go-microservices/service-currency-grpc v0.0.0-20230131023216-3b927eefe1a7/go.mod h1:ApH+WhCVaWXIGtLhUljBpKmIz545TWiHjnewtBUbWts=
+github.com/CharlesSchiavinato/go-microservices/service-currency-grpc v0.0.0-20230131025858-7ed55afaa96d h1:oPGOLluCkPsChuoT6dnY6bhjJUFNL+FCJt3YZIzDPfI=
+github.com/CharlesSchiavinato/go-microservices/service-currency-grpc v0.0.0-20230131025858-7ed55afaa96d/go.mod h1:ApH+WhCVaWXIGtLhUljBpKmIz545TWiHjnewtBUbWts=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
 github.com/Masterminds/semver/v3 v3.2.0 h1:3MEsd0SM6jqZojhjLWWeBY+Kcjy9i6MQAeY7YgDP83g=
