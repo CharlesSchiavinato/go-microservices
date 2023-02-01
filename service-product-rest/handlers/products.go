@@ -18,22 +18,25 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 
+	protos "github.com/CharlesSchiavinato/go-microservices/service-currency-grpc/protos/currency"
 	"github.com/CharlesSchiavinato/go-microservices/service-product-rest/data"
 	"github.com/gorilla/mux"
+	"github.com/hashicorp/go-hclog"
 )
 
 // Products is a http.Handler
 type Products struct {
-	l *log.Logger
+	l         hclog.Logger
+	cc        protos.CurrencyClient
+	productDB *data.ProductDB
 }
 
 // NewProducts creates a products handler with the given logger
-func NewProducts(l *log.Logger) *Products {
-	return &Products{l}
+func NewProducts(l hclog.Logger, cc protos.CurrencyClient, pdb *data.ProductDB) *Products {
+	return &Products{l, cc, pdb}
 }
 
 // swagger:route GET /products products ListProducts
@@ -43,19 +46,25 @@ func NewProducts(l *log.Logger) *Products {
 
 // ProductList returns all products from the data store
 func (p *Products) ProductList(rw http.ResponseWriter, r *http.Request) {
-	p.l.Println("[DEGUB] Handle ProductList")
+	p.l.Debug("Handle ProductList")
 
 	rw.Header().Add("Content-Type", "application/json")
 
 	// fetch the products from the datastore
-	pl := data.ProductList()
-
-	// serialize the list to JSON
-	err := data.ToJSON(pl, rw)
+	pl, err := p.productDB.ProductList("")
 
 	if err != nil {
-		p.l.Println("[ERROR] Handle ProductList - Internal error", err)
-		http.Error(rw, "Unable to serializing json", http.StatusInternalServerError)
+		p.l.Error("Handle ProductList - Unable to get currency rate", "error", err)
+		http.Error(rw, "Unable to get currency rate", http.StatusInternalServerError)
+		return
+	}
+
+	// serialize the list to JSON
+	err = data.ToJSON(pl, rw)
+
+	if err != nil {
+		p.l.Error("Handle ProductList - Unable to serializing product", "error", err)
+		http.Error(rw, "Unable to serializing product", http.StatusInternalServerError)
 		return
 	}
 }
@@ -71,34 +80,49 @@ func (p *Products) ProductGet(rw http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, err := strconv.Atoi(vars["id"])
 
-	p.l.Println("[DEGUB] Handle ProductGet", id)
+	p.l.Debug("Handle ProductGet", "id", id)
 
 	rw.Header().Add("Content-Type", "application/json")
 
 	if err != nil {
-		p.l.Println("[ERROR] Handle ProductGet - Invalid id", id)
+		p.l.Error("Handle ProductGet - Invalid id", "id", id, "error", err)
 		http.Error(rw, "Invalid id", http.StatusBadRequest)
 		return
 	}
 
-	pg, _, err := data.ProductFind(id)
+	pg, err := p.productDB.ProductGetByID(id, "")
 
 	if err == data.ErrProductNotFound {
-		p.l.Println("[ERROR] Handle ProductGet - Product not found", id)
+		p.l.Error("Handle ProductGet - Product not found", "id", id, "error", err)
 		http.Error(rw, "Product not found", http.StatusNotFound)
 		return
 	}
 
 	if err != nil {
-		p.l.Println("[ERROR] Handle ProductGet - Internal error", err)
+		p.l.Error("Handle ProductGet - Internal error", "error", err)
 		http.Error(rw, "Product not found", http.StatusInternalServerError)
 		return
 	}
 
+	// get exchange rate
+	rr := &protos.RateRequest{
+		Base:        protos.Currencies_EUR,
+		Destination: protos.Currencies_BRL,
+	}
+	resp, err := p.cc.GetRate(context.Background(), rr)
+
+	if err != nil {
+		p.l.Error("Handle ProductGet - Error getting new rate", "error", err)
+		http.Error(rw, "Error getting new rate", http.StatusInternalServerError)
+		return
+	}
+
+	pg.Price = pg.Price * resp.Rate
+
 	err = data.ToJSON(pg, rw)
 
 	if err != nil {
-		p.l.Println("[ERROR] Handle ProductList - Internal error", err)
+		p.l.Error("Handle ProductList - Internal error", "error", err)
 		http.Error(rw, "Unable to serializing json", http.StatusInternalServerError)
 		return
 	}
@@ -114,7 +138,7 @@ func (p *Products) ProductGet(rw http.ResponseWriter, r *http.Request) {
 
 // ProductCreate requests to add new products
 func (p *Products) ProductCreate(rw http.ResponseWriter, r *http.Request) {
-	p.l.Println("[DEGUB] Handle ProductCreate")
+	p.l.Debug("Handle ProductCreate")
 
 	prb := r.Context().Value(KeyProduct{}).(*data.Product)
 
@@ -134,7 +158,7 @@ func (p *Products) ProductUpdate(rw http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, err := strconv.Atoi(vars["id"])
 
-	p.l.Println("Handle PUT products", id)
+	p.l.Debug("Handle PUT products", "id", id)
 
 	if err != nil {
 		http.Error(rw, "Invalid id", http.StatusBadRequest)
@@ -151,11 +175,13 @@ func (p *Products) ProductUpdate(rw http.ResponseWriter, r *http.Request) {
 	err = data.ProductUpdate(prb)
 
 	if err == data.ErrProductNotFound {
+		p.l.Error("Handle PUT - Product not found", "id", id, "error", err)
 		http.Error(rw, "Product not found", http.StatusNotFound)
 		return
 	}
 
 	if err != nil {
+		p.l.Error("Handle PUT - Internal error", "id", id, "error", err)
 		http.Error(rw, "Product not found", http.StatusInternalServerError)
 		return
 	}
@@ -174,10 +200,10 @@ func (p *Products) ProductDelete(rw http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, err := strconv.Atoi(vars["id"])
 
-	p.l.Println("[DEBUG] Handle ProductDelete", id)
+	p.l.Debug("Handle ProductDelete", "id", id)
 
 	if err != nil {
-		p.l.Println("[ERROR] Handle ProductDelete - Invalid id", id)
+		p.l.Error("Handle ProductDelete - Invalid id", "id", id, "error", err)
 		http.Error(rw, "Invalid id", http.StatusBadRequest)
 		return
 	}
@@ -185,13 +211,13 @@ func (p *Products) ProductDelete(rw http.ResponseWriter, r *http.Request) {
 	err = data.ProductDelete(id)
 
 	if err == data.ErrProductNotFound {
-		p.l.Println("[ERROR] Handle ProductDelete - Product not found", id)
+		p.l.Error("Handle ProductDelete - Product not found", "id", id, "error", err)
 		http.Error(rw, "Product not found", http.StatusNotFound)
 		return
 	}
 
 	if err != nil {
-		p.l.Println("[ERROR] Handle ProductDelete - Internal error", err)
+		p.l.Error("Handle ProductDelete - Internal error", "id", id, "error", err)
 		http.Error(rw, "Product not found", http.StatusInternalServerError)
 		return
 	}
@@ -208,7 +234,7 @@ func (p Products) ProductMiddlewareValidation(next http.Handler) http.Handler {
 		err := data.FromJSON(prb, r.Body)
 
 		if err != nil {
-			p.l.Println("[ERROR] deserializing product")
+			p.l.Error("Handle ProductMiddleware - Deserializing product", "error", err)
 			http.Error(rw, "Error reading product", http.StatusBadRequest)
 			return
 		}
@@ -217,7 +243,7 @@ func (p Products) ProductMiddlewareValidation(next http.Handler) http.Handler {
 		err = prb.Validate()
 
 		if err != nil {
-			p.l.Println("[ERROR] validating product")
+			p.l.Error("Handle ProductMiddleware - Validating product", "error", err)
 			http.Error(
 				rw,
 				fmt.Sprintf("Error validating product: %s", err),

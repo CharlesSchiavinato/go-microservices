@@ -44,22 +44,20 @@ func (c *currencyClient) GetRate(ctx context.Context, in *RateRequest, opts ...g
 }
 
 // CurrencyServer is the server API for Currency service.
-// All implementations must embed UnimplementedCurrencyServer
+// All implementations should embed UnimplementedCurrencyServer
 // for forward compatibility
 type CurrencyServer interface {
 	// GetRate returns the exchange rate for the two provided currency codes
 	GetRate(context.Context, *RateRequest) (*RateResponse, error)
-	mustEmbedUnimplementedCurrencyServer()
 }
 
-// UnimplementedCurrencyServer must be embedded to have forward compatible implementations.
+// UnimplementedCurrencyServer should be embedded to have forward compatible implementations.
 type UnimplementedCurrencyServer struct {
 }
 
 func (UnimplementedCurrencyServer) GetRate(context.Context, *RateRequest) (*RateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRate not implemented")
 }
-func (UnimplementedCurrencyServer) mustEmbedUnimplementedCurrencyServer() {}
 
 // UnsafeCurrencyServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to CurrencyServer will

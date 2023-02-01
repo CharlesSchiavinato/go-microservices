@@ -2,16 +2,18 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
+	protos "github.com/CharlesSchiavinato/go-microservices/service-currency-grpc/protos/currency"
+	"github.com/CharlesSchiavinato/go-microservices/service-product-rest/data"
 	"github.com/CharlesSchiavinato/go-microservices/service-product-rest/handlers"
 	"github.com/go-openapi/runtime/middleware"
 	gohandlers "github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/hashicorp/go-hclog"
 	"google.golang.org/grpc"
 )
 
@@ -22,12 +24,25 @@ var allowedOrigins = []string{"http://localhost:3000"}
 func main() {
 	// env.Parse()
 
-	l := log.New(os.Stdout, "working", log.LstdFlags)
+	l := hclog.Default()
+
+	// create currency grpc client
+	conn, err := grpc.Dial(grpcCurrencyTarget, grpc.WithInsecure())
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer conn.Close()
+
+	// create client
+	cc := protos.NewCurrencyClient(conn)
+
+	// create database instance
+	pdb := data.NewProductDB(l, cc)
 
 	// create the handlers
-	hp := handlers.NewProducts(l)
-
-	conn, err := grpc.Dial()
+	hp := handlers.NewProducts(l, cc, pdb)
 
 	// create a new serve mux and register the handlers
 	sm := mux.NewRouter()
@@ -62,7 +77,7 @@ func main() {
 	s := &http.Server{
 		Addr:         bindAddress,
 		Handler:      ch(sm),
-		ErrorLog:     l,
+		ErrorLog:     l.StandardLogger(&hclog.StandardLoggerOptions{}),
 		IdleTimeout:  120 * time.Second,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -70,11 +85,11 @@ func main() {
 
 	// start the server
 	go func() {
-		l.Println("Starting server on port 9090")
+		l.Info("Starting server on port 9090")
 		err := s.ListenAndServe()
 
 		if err != nil {
-			l.Printf("Error starting server: %s\n", err)
+			l.Error("Error starting server", "error", err)
 			os.Exit(1)
 		}
 	}()
@@ -85,7 +100,7 @@ func main() {
 	signal.Notify(c, os.Kill)
 
 	sig := <-c
-	l.Println("Received terminate, graceful shutdown", sig)
+	l.Info("Received terminate, graceful shutdown", sig)
 
 	tc, _ := context.WithTimeout(context.Background(), 30*time.Second)
 	s.Shutdown(tc)

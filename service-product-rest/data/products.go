@@ -1,13 +1,16 @@
 package data
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"regexp"
 	"time"
 
+	protos "github.com/CharlesSchiavinato/go-microservices/service-currency-grpc/protos/currency"
 	"github.com/go-playground/validator/v10"
+	"github.com/hashicorp/go-hclog"
 )
 
 var ErrProductNotFound = fmt.Errorf("Product not found")
@@ -42,11 +45,20 @@ type Product struct {
 	ID          int     `json:"id"`
 	Name        string  `json:"name" validate:"required,min=3,max=50"`
 	Description string  `json:"description"`
-	Price       float32 `json:"price" validate:"gt=0"`
+	Price       float64 `json:"price" validate:"gt=0"`
 	SKU         string  `json:"sku" validate:"required,customSKU"`
 	CreatedOn   string  `json:"-"`
 	UpdatedOn   string  `json:"-"`
 	DeletedOn   string  `json:"-"`
+}
+
+type ProductDB struct {
+	log      hclog.Logger
+	currency protos.CurrencyClient
+}
+
+func NewProductDB(l hclog.Logger, c protos.CurrencyClient) *ProductDB {
+	return &ProductDB{l, c}
 }
 
 func (p *Product) Validate() error {
@@ -84,8 +96,25 @@ func FromJSON(i interface{}, r io.Reader) error {
 	return d.Decode(i)
 }
 
-func ProductList() Products {
-	return productList
+func (p *ProductDB) ProductList(currency string) (Products, error) {
+	if currency == "" {
+		return productList, nil
+	}
+
+	rate, err := p.getRate(currency)
+
+	if err != nil {
+		return nil, err
+	}
+
+	pr := Products{}
+	for _, p := range productList {
+		np := *p
+		np.Price = np.Price * rate
+		pr = append(pr, &np)
+	}
+
+	return pr, nil
 }
 
 func ProductAdd(p *Product) {
@@ -97,45 +126,80 @@ func ProductAdd(p *Product) {
 }
 
 func ProductUpdate(p *Product) error {
-	_, pos, err := ProductFind(p.ID)
+	i := productIndexByID(p.ID)
 
-	if err != nil {
-		return err
+	if i < 0 {
+		return ErrProductNotFound
 	}
 
-	productList[pos] = p
+	productList[i] = p
 
 	return nil
 }
 
 func ProductDelete(id int) error {
-	pf, pos, err := ProductFind(id)
+	i := productIndexByID(id)
 
-	if err != nil {
-		return err
-	}
-
-	if pf == nil {
+	if i < 0 {
 		return ErrProductNotFound
 	}
 
-	productList = append(productList[:pos], productList[pos+1:]...)
+	productList = append(productList[:i], productList[i+1:]...)
 
 	return nil
 }
 
-func ProductFind(id int) (*Product, int, error) {
+func (p *ProductDB) ProductGetByID(id int, currency string) (*Product, error) {
+	i := productIndexByID(id)
+
+	if i < 0 {
+		return nil, ErrProductNotFound
+	}
+
+	if currency == "" {
+		return productList[i], nil
+	}
+
+	rate, err := p.getRate(currency)
+
+	if err != nil {
+		p.log.Error("Unable to get rate", "currency", currency, "error", err)
+		return nil, err
+	}
+
+	np := *productList[i]
+	np.Price = np.Price * rate
+
+	return &np, nil
+}
+
+func productIndexByID(id int) int {
 	for i, p := range productList {
 		if p.ID == id {
-			return p, i, nil
+			return i
 		}
 	}
 
-	return nil, -1, ErrProductNotFound
+	return -1
 }
 
 func NextID() int {
 	return len(productList) + 1
+}
+
+func (p *ProductDB) getRate(destination string) (float64, error) {
+	rr := &protos.RateRequest{
+		Base:        protos.Currencies_EUR,
+		Destination: protos.Currencies(protos.Currencies_value[destination]),
+	}
+
+	resp, err := p.currency.GetRate(context.Background(), rr)
+
+	if err != nil {
+		p.log.Error("Unable to get rate", "currency", destination, "error", err)
+	}
+
+	return float64(resp.Rate), err
 }
 
 var productList = []*Product{
