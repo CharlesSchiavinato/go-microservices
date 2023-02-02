@@ -50,7 +50,9 @@ func main() {
 	// handlers for API
 	getRouter := sm.Methods(http.MethodGet).Subrouter()
 	getRouter.HandleFunc("/products", hp.ProductList)
+	getRouter.HandleFunc("/products", hp.ProductList).Queries("currency", "{[A-Z]{3}}")
 	getRouter.HandleFunc("/products/{id:[0-9]+}", hp.ProductGet)
+	getRouter.HandleFunc("/products/{id:[0-9]+}", hp.ProductGet).Queries("currency", "{[A-Z]{3}}")
 
 	putRouter := sm.Methods(http.MethodPut).Subrouter()
 	putRouter.HandleFunc("/products/{id:[0-9]+}", hp.ProductUpdate)

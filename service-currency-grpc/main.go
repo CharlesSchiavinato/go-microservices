@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"os"
 
@@ -12,6 +11,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
+
+var bindAddress = ":9092"
 
 func main() {
 	log := hclog.Default()
@@ -37,12 +38,14 @@ func main() {
 	reflection.Register(gs)
 
 	// create a TCP socket for inbound server connections
-	l, err := net.Listen("tcp", fmt.Sprintf(":%d", 9092))
+	l, err := net.Listen("tcp", bindAddress)
 
 	if err != nil {
 		log.Error("Unable to create listener", "error", err)
 		os.Exit(1)
 	}
+
+	log.Info("Starting server", "bind_address", bindAddress)
 
 	// listen for requests
 	gs.Serve(l)

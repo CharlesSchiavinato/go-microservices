@@ -23,6 +23,14 @@ type productsResponseWrapper struct {
 	Body []Product
 }
 
+// Data structure representing a single product
+// swagger:response productResponse
+type productResponseWrapper struct {
+	// Newly created product
+	// in: body
+	Body Product
+}
+
 // swagger:response noContent
 type productNoContentWrapper struct {
 }

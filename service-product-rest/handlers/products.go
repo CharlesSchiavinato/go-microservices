@@ -17,7 +17,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -33,6 +32,8 @@ type Products struct {
 	cc        protos.CurrencyClient
 	productDB *data.ProductDB
 }
+
+type KeyProduct struct{}
 
 // NewProducts creates a products handler with the given logger
 func NewProducts(l hclog.Logger, cc protos.CurrencyClient, pdb *data.ProductDB) *Products {
@@ -50,8 +51,10 @@ func (p *Products) ProductList(rw http.ResponseWriter, r *http.Request) {
 
 	rw.Header().Add("Content-Type", "application/json")
 
+	cur := r.URL.Query().Get("currency")
+
 	// fetch the products from the datastore
-	pl, err := p.productDB.ProductList("")
+	pl, err := p.productDB.ProductList(cur)
 
 	if err != nil {
 		p.l.Error("Handle ProductList - Unable to get currency rate", "error", err)
@@ -79,6 +82,7 @@ func (p *Products) ProductList(rw http.ResponseWriter, r *http.Request) {
 func (p *Products) ProductGet(rw http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, err := strconv.Atoi(vars["id"])
+	cur := r.URL.Query().Get("currency")
 
 	p.l.Debug("Handle ProductGet", "id", id)
 
@@ -90,7 +94,7 @@ func (p *Products) ProductGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pg, err := p.productDB.ProductGetByID(id, "")
+	pg, err := p.productDB.ProductGetByID(id, cur)
 
 	if err == data.ErrProductNotFound {
 		p.l.Error("Handle ProductGet - Product not found", "id", id, "error", err)
@@ -117,7 +121,7 @@ func (p *Products) ProductGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pg.Price = pg.Price * resp.Rate
+	pg.Price = pg.Price * float64(resp.Rate)
 
 	err = data.ToJSON(pg, rw)
 
@@ -223,42 +227,4 @@ func (p *Products) ProductDelete(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-type KeyProduct struct{}
-
-func (p Products) ProductMiddlewareValidation(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		prb := &data.Product{}
-
-		err := data.FromJSON(prb, r.Body)
-
-		if err != nil {
-			p.l.Error("Handle ProductMiddleware - Deserializing product", "error", err)
-			http.Error(rw, "Error reading product", http.StatusBadRequest)
-			return
-		}
-
-		// validate de product
-		err = prb.Validate()
-
-		if err != nil {
-			p.l.Error("Handle ProductMiddleware - Validating product", "error", err)
-			http.Error(
-				rw,
-				fmt.Sprintf("Error validating product: %s", err),
-				http.StatusBadRequest,
-			)
-			return
-		}
-
-		// p.l.Printf("Product: %#v\n", prb)
-
-		// add the product to the context
-		ctx := context.WithValue(r.Context(), KeyProduct{}, prb)
-		req := r.WithContext(ctx)
-
-		// call the next handler, which can be another middleware in the chain, or the final handler
-		next.ServeHTTP(rw, req)
-	})
 }
